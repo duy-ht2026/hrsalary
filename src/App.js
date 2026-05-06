@@ -357,15 +357,15 @@ const App = () => {
                   <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                     <Calendar className="w-3 h-3" /> Lịch công
                   </h3>
-                  {scheduleData.makeupCount > 0 && <span className="text-[8px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold">+{scheduleData.makeupCount} NGÀY</span>}
+                  {scheduleData.makeupCount > 0 && <span className="text-[10px] bg-amber-100 text-amber-700 px-2.5 py-1.5 rounded-md font-bold">+{scheduleData.makeupCount} NGÀY</span>}
                 </div>
                 
                 <div className="grid grid-cols-7 gap-1">
-                  {dayNames.map(d => <div key={d} className="text-[8px] font-black text-slate-300 text-center uppercase">{d}</div>)}
+                  {dayNames.map(d => <div key={d} className="text-[10px] font-black text-slate-300 text-center uppercase">{d}</div>)}
                   {Array.from({ length: scheduleData.details[0].dayOfWeek }).map((_, i) => <div key={i}></div>)}
                   {scheduleData.details.map(item => (
                     <div key={item.day} className={`
-                      aspect-square flex items-center justify-center rounded-md text-[9px] font-bold transition-all relative
+                      py-2 flex items-center justify-center rounded-md text-[9px] font-bold transition-all relative
                       ${item.type === 'workday' ? 'bg-slate-50 text-slate-500 border border-slate-100' : 
                         item.type === 'saturday' ? 'bg-indigo-50 text-indigo-500 border border-indigo-100' :
                         item.type === 'holiday' ? 'bg-red-50 text-red-600 border border-red-100' :
@@ -379,9 +379,9 @@ const App = () => {
                 </div>
 
                 <div className="mt-3 flex items-center justify-center gap-4 border-t border-slate-50 pt-2 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                   <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-red-400"></div> Lễ</div>
-                   <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div> Nghỉ bù</div>
-                   <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-indigo-400"></div> T7</div>
+                   <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-red-400"></div> Lễ</div>
+                   <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div> Nghỉ bù</div>
+                   <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div> T7</div>
                 </div>
               </div>
 
