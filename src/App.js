@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   CalendarRange,
   Minus,
-  Plus
+  Plus,
+  Info
 } from 'lucide-react';
 
 const App = () => {
@@ -75,7 +76,7 @@ const App = () => {
 
   const scheduleData = useMemo(() => {
     if (dateError && dateError.includes("kết thúc < Ngày bắt đầu")) {
-        return { totalStandardDays: 0, details: [], makeupCount: 0 };
+        return { totalStandardDays: 0, details: [], makeupCount: 0, paddingDays: 0 };
     }
 
     const start = new Date(dateRange.fromDate);
@@ -84,6 +85,9 @@ const App = () => {
     const details = [];
     let totalStandardDays = 0;
     
+    // Tính số ô trống cần thiết ở đầu lịch dựa trên ngày bắt đầu
+    const paddingDays = start.getDay(); // 0 là CN, 1 là T2...
+
     let curr = new Date(start);
     const dateArray = [];
     while (curr <= end) {
@@ -91,6 +95,7 @@ const App = () => {
       curr.setDate(curr.getDate() + 1);
     }
 
+    // Logic tìm ngày bù
     const makeupDays = new Set();
     dateArray.forEach(date => {
         const dateStr = date.toISOString().split('T')[0];
@@ -118,7 +123,7 @@ const App = () => {
       const dateStr = date.toISOString().split('T')[0];
       const dayOfWeek = date.getDay();
       let dayValue = 0;
-      let type = 'weekend';
+      let type = 'weekend'; 
       const isHoliday = holidayDates.has(dateStr);
       const isMakeupDay = makeupDays.has(dateStr);
 
@@ -137,9 +142,17 @@ const App = () => {
       } else if (dayOfWeek >= 1 && dayOfWeek <= 5) {
         dayValue = 1;
         type = 'workday';
-      } else if (dayOfWeek === 6 && includeSaturday) {
-        dayValue = 0.5;
-        type = 'saturday';
+      } else if (dayOfWeek === 6) {
+        if (includeSaturday) {
+            dayValue = 0.5;
+            type = 'saturday';
+        } else {
+            dayValue = 0;
+            type = 'weekend';
+        }
+      } else if (dayOfWeek === 0) {
+        dayValue = 0;
+        type = 'weekend';
       }
 
       totalStandardDays += dayValue;
@@ -154,7 +167,7 @@ const App = () => {
       });
     });
 
-    return { totalStandardDays, details, makeupCount: makeupDays.size };
+    return { totalStandardDays, details, makeupCount: makeupDays.size, paddingDays };
   }, [dateRange, includeSaturday, dateError]);
 
   const calc = useMemo(() => {
@@ -196,9 +209,13 @@ const App = () => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Math.round(val));
   };
 
+  const formatDateShort = (dateStr) => {
+    const d = new Date(dateStr);
+    return `${d.getDate()}/${d.getMonth() + 1}`;
+  };
+
   const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
-  // Thành phần Input có nút +/-
   const StepperInput = ({ value, onChange, step = 1, min = 0, max = 100, label, disabled = false }) => (
     <div className={`space-y-1 ${disabled ? "opacity-30 pointer-events-none" : ""}`}>
       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-tight block">{label}</label>
@@ -257,7 +274,7 @@ const App = () => {
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           flex flex-col
         `}>
-          <div className="p-3 flex-1 overflow-y-auto space-y-4 custom-scrollbar">
+          <div className="p-3 flex-1 overflow-y-auto space-y-4 custom-scrollbar bg-indigo-50">
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <h3 className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1.5">
@@ -403,15 +420,15 @@ const App = () => {
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-orange-600 uppercase"><MinusCircle className="w-2.5 h-2.5" /> Khấu trừ</div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div className={`p-2 bg-orange-50/30 rounded-lg border border-orange-50 ${isFreelancer ? "opacity-30 grayscale" : ""}`}>
+                      <div className={`p-2 bg-orange-50/30 rounded-lg border border-orange-50 flex justify-between items-center ${isFreelancer ? "opacity-30 grayscale" : ""}`}>
                         <p className="text-[9px] font-bold text-orange-500 uppercase tracking-tighter">Bảo hiểm</p>
                         <p className="text-[11px] font-bold text-orange-900">-{formatCurrency(isFreelancer ? 0 : calc.insuranceAmt)}</p>
                       </div>
-                      <div className={`p-2 bg-orange-50/30 rounded-lg border border-orange-50 ${isFreelancer ? "opacity-30 grayscale" : ""}`}>
+                      <div className={`p-2 bg-indigo-50/30 rounded-lg border border-orange-50 flex justify-between items-center ${isFreelancer ? "opacity-30 grayscale" : ""}`}>
                         <p className="text-[9px] font-bold text-orange-500 uppercase tracking-tighter">Giảm trừ</p>
                         <p className="text-[11px] font-bold text-orange-900">-{formatCurrency(isFreelancer ? 0 : calc.totalDeduction)}</p>
                       </div>
-                      <div className="p-2 bg-red-50/30 rounded-lg border border-red-50">
+                      <div className="p-2 bg-red-50/30 rounded-lg border border-red-50 flex justify-between items-center">
                         <p className="text-[9px] font-bold text-red-500 uppercase tracking-tighter">Thuế TNCN</p>
                         <p className="text-[11px] font-bold text-red-900">-{formatCurrency(calc.pit)}</p>
                       </div>
@@ -440,34 +457,59 @@ const App = () => {
             <div className="xl:col-span-5 space-y-3">
               <div className="bg-white rounded-xl border border-slate-200 p-2.5 shadow-sm">
                 <div className="flex items-center justify-between mb-2.5 px-1">
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                    <Calendar className="w-2.5 h-2.5" /> Lịch làm việc
-                  </h3>
+                  <div className="flex flex-col">
+                    <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                        <Calendar className="w-2.5 h-2.5" /> Lịch làm việc
+                    </h3>
+                    <span className="text-[9px] text-slate-400 font-medium">Kỳ: {formatDateShort(dateRange.fromDate)} - {formatDateShort(dateRange.toDate)}</span>
+                  </div>
                   {scheduleData.makeupCount > 0 && <span className="text-[8px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">+{scheduleData.makeupCount} NGHỈ BÙ</span>}
                 </div>
                 
                 <div className="grid grid-cols-7 gap-1">
                   {dayNames.map(d => <div key={d} className="text-[8px] font-black text-slate-300 text-center uppercase py-0.5">{d}</div>)}
-                  {scheduleData.details.map((item, idx) => (
-                    <div key={idx} title={item.fullDate} className={`
-                      py-2 flex items-center justify-center rounded text-[10px] font-bold transition-all relative border
-                      ${item.type === 'workday' ? 'bg-slate-50 text-slate-500 border-slate-100' : 
-                        item.type === 'saturday' ? 'bg-indigo-50 text-indigo-500 border-indigo-100' :
-                        item.type === 'holiday' ? 'bg-red-50 text-red-600 border-red-100' :
-                        item.type === 'makeup' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                        'bg-white text-slate-200 border-transparent'}
-                    `}>
-                      {item.dateLabel}
-                      {item.isMakeupDay && <div className="absolute top-0.5 right-0.5 w-1 h-1 bg-amber-500 rounded-full"></div>}
-                    </div>
+                  
+                  {/* Padding Days for dynamic start day alignment */}
+                  {Array.from({ length: scheduleData.paddingDays }).map((_, i) => (
+                    <div key={`pad-${i}`} className="py-2 border border-transparent"></div>
                   ))}
+
+                  {scheduleData.details.map((item, idx) => {
+                    const isSaturday = item.dayOfWeek === 6;
+                    const isSunday = item.dayOfWeek === 0;
+                    
+                    return (
+                      <div key={idx} title={item.fullDate} className={`
+                        py-2 flex items-center justify-center rounded text-[10px] font-bold transition-all relative border
+                        ${item.type === 'workday' ? 'bg-slate-50 text-slate-500 border-slate-100' : 
+                          item.type === 'saturday' ? 'bg-indigo-50 text-indigo-500 border-indigo-100' :
+                          item.type === 'holiday' ? 'bg-red-50 text-red-600 border-red-100' :
+                          item.type === 'makeup' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                          isSunday ? 'bg-white text-slate-200 border-transparent opacity-60' :
+                          'bg-white text-slate-200 border-transparent'}
+                      `}>
+                        {item.dateLabel}
+                        {item.isMakeupDay && <div className="absolute top-0.5 right-0.5 w-1 h-1 bg-amber-500 rounded-full"></div>}
+                        {item.isHoliday && <div className="absolute bottom-0.5 right-0.5 w-1 h-1 bg-red-400 rounded-full"></div>}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-3 border-t border-slate-50 pt-2 text-[8px] font-bold text-slate-400 uppercase">
                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Làm</div>
+                   <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div> T7</div>
                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-red-400"></div> Lễ</div>
                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div> Bù</div>
                 </div>
+              </div>
+
+              <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 border-dashed flex gap-3">
+                 <Info className="w-4 h-4 text-indigo-500 shrink-0" />
+                 <p className="text-[10px] text-indigo-700 leading-normal font-medium">
+                    Hệ thống tự động nhận diện ngày nghỉ lễ theo lịch nhà nước 2026. <br/>
+                    <strong>Lưu ý:</strong> Ngày công thực tế = Công chuẩn - Nghỉ không lương.
+                 </p>
               </div>
               
               <button className="w-full bg-slate-900 text-white py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-md shadow-slate-100">
