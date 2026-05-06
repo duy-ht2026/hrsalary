@@ -1,35 +1,52 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calendar, 
   Calculator, 
   Wallet,
-  Info,
   Clock,
   Settings,
-  TrendingDown,
   ShieldCheck,
   Menu,
-  X,
   ArrowRight,
   ArrowUpRight,
   MinusCircle,
   UserCheck,
-  Zap
+  Zap,
+  AlertTriangle,
+  CalendarRange
 } from 'lucide-react';
 
 const App = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // 1. Khởi tạo tháng mặc định là tháng trước
-  const getDefaultMonth = () => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 1);
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${year}-${month}`;
+  // Khởi tạo khoảng ngày mặc định: 29 tháng trước-trước -> 28 tháng trước
+  // Ví dụ: Tháng hiện tại là 5 (May), tính cho tháng 4 (April)
+  // Mặc định: 29/03 -> 28/04
+  const getDefaultDates = () => {
+    const today = new Date();
+    const currentMonth = today.getMonth(); // 0-11
+    const currentYear = today.getFullYear();
+    
+    // Ngày 29 của 2 tháng trước
+    const from = new Date(currentYear, currentMonth - 2, 29);
+    // Ngày 28 của 1 tháng trước
+    const to = new Date(currentYear, currentMonth - 1, 28);
+    
+    // Đảm bảo định dạng yyyy-mm-dd cho input type="date"
+    const formatDate = (date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+
+    return {
+      fromDate: formatDate(from),
+      toDate: formatDate(to)
+    };
   };
 
-  const [monthStr, setMonthStr] = useState(getDefaultMonth());
+  const [dateRange, setDateRange] = useState(getDefaultDates());
   const [includeSaturday, setIncludeSaturday] = useState(true);
   const [isFreelancer, setIsFreelancer] = useState(false);
   const [grossSalary, setGrossSalary] = useState(20000000);
@@ -48,41 +65,61 @@ const App = () => {
     "2026-05-01", "2026-09-02", "2026-09-03"
   ];
 
-  const scheduleData = useMemo(() => {
-    const [year, month] = monthStr.split('-').map(Number);
-    const daysInMonth = new Date(year, month, 0).getDate();
-    let totalStandardDays = 0;
-    const details = [];
-    const holidayDates = new Set(HOLIDAYS_2026);
-    const makeupDays = new Set();
+  // Logic kiểm tra lỗi logic ngày tháng
+  const dateError = useMemo(() => {
+    const start = new Date(dateRange.fromDate);
+    const end = new Date(dateRange.toDate);
+    if (end < start) return "Ngày kết thúc không thể trước ngày bắt đầu";
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    if (diffDays > 31) return `Kỳ tính công quá dài (${diffDays} ngày). Tối đa nên là 31 ngày.`;
+    return null;
+  }, [dateRange]);
 
-    for (let i = 1; i <= daysInMonth; i++) {
-      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      const date = new Date(year, month - 1, i);
-      const dayOfWeek = date.getDay();
-      if (holidayDates.has(dateStr)) {
-        const isFullOffDay = (dayOfWeek === 0) || (dayOfWeek === 6 && !includeSaturday);
-        const isHalfOffDay = (dayOfWeek === 6 && includeSaturday);
-        if (isFullOffDay || isHalfOffDay) {
-          let nextDay = i + 1;
-          while (nextDay <= daysInMonth) {
-            const nextDate = new Date(year, month - 1, nextDay);
-            const nextDayOfWeek = nextDate.getDay();
-            const nextDateStr = `${year}-${String(month).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`;
-            const isWeekend = (nextDayOfWeek === 0) || (nextDayOfWeek === 6 && !includeSaturday);
-            if (!isWeekend && !holidayDates.has(nextDateStr) && !makeupDays.has(nextDateStr)) {
-              makeupDays.add(nextDateStr);
-              break;
-            }
-            nextDay++;
-          }
-        }
-      }
+  const scheduleData = useMemo(() => {
+    if (dateError && dateError.includes("trước ngày bắt đầu")) {
+        return { totalStandardDays: 0, details: [], makeupCount: 0 };
     }
 
-    for (let i = 1; i <= daysInMonth; i++) {
-      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      const date = new Date(year, month - 1, i);
+    const start = new Date(dateRange.fromDate);
+    const end = new Date(dateRange.toDate);
+    const holidayDates = new Set(HOLIDAYS_2026);
+    const details = [];
+    let totalStandardDays = 0;
+    
+    // Tạo danh sách các ngày trong khoảng
+    let curr = new Date(start);
+    const dateArray = [];
+    while (curr <= end) {
+      dateArray.push(new Date(curr));
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    const makeupDays = new Set();
+    dateArray.forEach(date => {
+        const dateStr = date.toISOString().split('T')[0];
+        const dayOfWeek = date.getDay();
+        if (holidayDates.has(dateStr)) {
+            const isFullOffDay = (dayOfWeek === 0) || (dayOfWeek === 6 && !includeSaturday);
+            if (isFullOffDay) {
+                let next = new Date(date);
+                next.setDate(next.getDate() + 1);
+                while (next <= end) {
+                    const nStr = next.toISOString().split('T')[0];
+                    const nDay = next.getDay();
+                    const isWeekend = (nDay === 0) || (nDay === 6 && !includeSaturday);
+                    if (!isWeekend && !holidayDates.has(nStr) && !makeupDays.has(nStr)) {
+                        makeupDays.add(nStr);
+                        break;
+                    }
+                    next.setDate(next.getDate() + 1);
+                }
+            }
+        }
+    });
+
+    dateArray.forEach(date => {
+      const dateStr = date.toISOString().split('T')[0];
       const dayOfWeek = date.getDay();
       let dayValue = 0;
       let type = 'weekend';
@@ -100,18 +137,24 @@ const App = () => {
         type = 'saturday';
       }
       totalStandardDays += dayValue;
-      details.push({ day: i, dayOfWeek, dayValue, type, isHoliday, isMakeupDay });
-    }
+      details.push({ 
+        dateLabel: date.getDate(), 
+        fullDate: dateStr,
+        dayOfWeek, 
+        dayValue, 
+        type, 
+        isHoliday, 
+        isMakeupDay 
+      });
+    });
+
     return { totalStandardDays, details, makeupCount: makeupDays.size };
-  }, [monthStr, includeSaturday]);
+  }, [dateRange, includeSaturday, dateError]);
 
   const calc = useMemo(() => {
     const { totalStandardDays } = scheduleData;
-    
-    // Nếu là freelancer, không trừ bảo hiểm ban đầu (vì tính 10% trên gross thực nhận)
     const activeInsuranceRate = isFreelancer ? 0 : insuranceRate;
     const netAfterInsurance = grossSalary * (100 - activeInsuranceRate) / 100;
-    
     const dailyRate = totalStandardDays > 0 ? netAfterInsurance / totalStandardDays : 0;
     const actualDays = Math.max(0, totalStandardDays - unpaidLeave);
     const salaryByDays = actualDays * dailyRate;
@@ -120,14 +163,11 @@ const App = () => {
     let totalDeduction = 0;
 
     if (isFreelancer) {
-      // Freelancer: Khấu trừ cố định 10% trên tổng thu nhập tính theo ngày công
       pit = salaryByDays * 0.1;
-      totalDeduction = 0; // Không áp dụng giảm trừ gia cảnh
+      totalDeduction = 0;
     } else {
-      // Nhân viên chính thức: Tính theo biểu thuế lũy tiến
       totalDeduction = REF_PARAMS.personalDeduction + (dependents * REF_PARAMS.dependentDeduction);
       const taxableIncome = Math.max(0, salaryByDays - totalDeduction);
-      
       if (taxableIncome > 0) {
         if (taxableIncome <= 5000000) pit = taxableIncome * 0.05;
         else if (taxableIncome <= 10000000) pit = taxableIncome * 0.1 - 250000;
@@ -158,7 +198,6 @@ const App = () => {
         <div className="fixed inset-0 bg-slate-900/30 z-40 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
       )}
 
-      {/* Header Compact */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-1.5 hover:bg-slate-100 rounded-lg">
@@ -173,38 +212,67 @@ const App = () => {
           {isFreelancer && (
             <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-200 uppercase">Freelancer</span>
           )}
-          <div className="bg-slate-100 px-3 py-1 rounded-full text-[11px] font-bold text-slate-500 uppercase tracking-tighter">
-            Kỳ: {monthStr.split('-')[1]}/{monthStr.split('-')[0]}
+          <div className="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-tighter flex items-center gap-1.5">
+            <CalendarRange className="w-3 h-3" /> Kỳ lương linh hoạt
           </div>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar Tối giản */}
         <aside className={`
-          fixed lg:relative inset-y-0 left-0 w-64 bg-white border-r border-slate-200 z-50 transform transition-transform duration-200
+          fixed lg:relative inset-y-0 left-0 w-72 bg-white border-r border-slate-200 z-50 transform transition-transform duration-200
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           flex flex-col
         `}>
-          <div className="p-4 flex-1 overflow-y-auto space-y-5 custom-scrollbar">
-            {/* Loại hình nhân sự */}
+          <div className="p-4 flex-1 overflow-y-auto space-y-6 custom-scrollbar">
+            {/* Kỳ tính công linh hoạt */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-2">
+                  <CalendarRange className="w-3 h-3" /> Kỳ tính công
+                </h3>
+                <button 
+                  onClick={() => setDateRange(getDefaultDates())}
+                  className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md hover:bg-indigo-100 transition-colors"
+                >
+                  Mặc định
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <div>
+                  <label className="text-[9px] text-slate-400 font-bold uppercase mb-1 block">Từ ngày</label>
+                  <input 
+                    type="date" 
+                    value={dateRange.fromDate} 
+                    onChange={(e) => setDateRange(prev => ({...prev, fromDate: e.target.value}))}
+                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:ring-1 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] text-slate-400 font-bold uppercase mb-1 block">Đến ngày</label>
+                  <input 
+                    type="date" 
+                    value={dateRange.toDate} 
+                    onChange={(e) => setDateRange(prev => ({...prev, toDate: e.target.value}))}
+                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:ring-1 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+                {dateError && (
+                    <div className="flex items-start gap-2 mt-1 p-2 bg-red-50 rounded-lg border border-red-100 animate-pulse">
+                        <AlertTriangle className="w-3 h-3 text-red-500 mt-0.5" />
+                        <span className="text-[10px] text-red-600 leading-tight font-medium">{dateError}</span>
+                    </div>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-3">
               <h3 className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-2">
                 <UserCheck className="w-3 h-3" /> Loại nhân sự
               </h3>
               <div className="bg-slate-100 p-1 rounded-lg flex">
-                <button 
-                  onClick={() => setIsFreelancer(false)}
-                  className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${!isFreelancer ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}
-                >
-                  Chính thức
-                </button>
-                <button 
-                  onClick={() => setIsFreelancer(true)}
-                  className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${isFreelancer ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500'}`}
-                >
-                  Freelancer
-                </button>
+                <button onClick={() => setIsFreelancer(false)} className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${!isFreelancer ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>Chính thức</button>
+                <button onClick={() => setIsFreelancer(true)} className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${isFreelancer ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500'}`}>Freelancer</button>
               </div>
             </div>
 
@@ -215,23 +283,19 @@ const App = () => {
               <div className="space-y-2">
                 <div>
                   <label className="text-[10px] text-slate-500 mb-1 block">Lương Gross</label>
-                  <input type="number" value={grossSalary} onChange={(e) => setGrossSalary(Number(e.target.value))} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:ring-1 focus:ring-indigo-500 outline-none" />
+                  <input type="number" value={grossSalary} onChange={(e) => setGrossSalary(Number(e.target.value))} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold" />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className={isFreelancer ? "opacity-30 pointer-events-none" : ""}>
                     <label className="text-[10px] text-slate-500 mb-1 block">% BH</label>
                     <input type="number" step="0.5" disabled={isFreelancer} value={insuranceRate} onChange={(e) => setInsuranceRate(Number(e.target.value))} className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold" />
                   </div>
-                  <div>
-                    <label className="text-[10px] text-slate-500 mb-1 block">Tháng</label>
-                    <input type="month" value={monthStr} onChange={(e) => setMonthStr(e.target.value)} className="w-full px-1 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold" />
+                  <div className="flex flex-col">
+                    <label className="text-[10px] text-slate-500 mb-1 block">Sáng T7</label>
+                    <button onClick={() => setIncludeSaturday(!includeSaturday)} className={`h-9 flex items-center justify-center rounded-lg border transition-all ${includeSaturday ? 'bg-indigo-50 border-indigo-200 text-indigo-600 font-bold' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                        {includeSaturday ? 'Có' : 'Không'}
+                    </button>
                   </div>
-                </div>
-                <div className="flex items-center justify-between p-2.5 bg-indigo-50 rounded-lg border border-indigo-100">
-                  <span className="text-[10px] font-bold text-indigo-700 uppercase">Làm sáng T7</span>
-                  <button onClick={() => setIncludeSaturday(!includeSaturday)} className={`relative h-5 w-9 rounded-full transition-colors ${includeSaturday ? 'bg-indigo-600' : 'bg-slate-300'}`}>
-                    <span className={`absolute top-1 left-1 h-3 w-3 rounded-full bg-white transition-transform ${includeSaturday ? 'translate-x-4' : 'translate-x-0'}`} />
-                  </button>
                 </div>
               </div>
             </div>
@@ -251,27 +315,16 @@ const App = () => {
                 </div>
               </div>
             </div>
-            
-            <div className={`p-3 bg-slate-50 rounded-xl border border-slate-100 ${isFreelancer ? "opacity-30 grayscale" : ""}`}>
-               <p className="text-[9px] text-slate-400 font-bold uppercase mb-2 tracking-tight">Mức giảm trừ</p>
-               <div className="space-y-1 text-[10px]">
-                 <div className="flex justify-between"><span>Bản thân:</span><span className="font-bold">15.5M</span></div>
-                 <div className="flex justify-between"><span>Phụ thuộc:</span><span className="font-bold">6.2M</span></div>
-               </div>
-            </div>
           </div>
         </aside>
 
-        {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-3 lg:p-4 space-y-4 custom-scrollbar">
-          
-          {/* Quick Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {[
-              { label: 'Công chuẩn', val: calc.totalStandardDays, color: 'bg-blue-50 text-blue-700 border-blue-100' },
+              { label: 'Công chuẩn', val: scheduleData.totalStandardDays, color: 'bg-blue-50 text-blue-700 border-blue-100' },
               { label: 'Thực làm', val: calc.actualDays, color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
               { label: 'Lương/Ngày', val: formatCurrency(calc.dailyRate), color: 'bg-slate-100 text-slate-700 border-slate-200' },
-              { label: 'Trạng thái', val: isFreelancer ? 'Freelance (10%)' : 'Full-time', color: 'bg-white text-slate-600 border-slate-200 shadow-sm' }
+              { label: 'Tổng số ngày', val: scheduleData.details.length, color: 'bg-white text-slate-600 border-slate-200 shadow-sm' }
             ].map((m, i) => (
               <div key={i} className={`${m.color} px-3 py-2 rounded-xl border flex flex-col justify-center`}>
                 <span className={`text-[8px] font-bold uppercase mb-0.5 opacity-80`}>{m.label}</span>
@@ -281,112 +334,101 @@ const App = () => {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-            <div className="xl:col-span-8 space-y-4">
+            <div className="xl:col-span-7 space-y-4">
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                 <div className="px-4 py-2 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Chi tiết bảng lương</h3>
+                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Bảng tính lương chi tiết</h3>
                   <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
                 </div>
                 
-                <div className="p-3 md:p-4 space-y-4">
-                  {/* Nhóm Thu nhập */}
+                <div className="p-4 space-y-5">
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 uppercase">
-                      <ArrowUpRight className="w-3 h-3" /> Thu nhập gộp
-                    </div>
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 uppercase"><ArrowUpRight className="w-3 h-3" /> Thu nhập</div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-50">
-                        <p className="text-[9px] text-blue-500 mb-1">Lương Gross</p>
+                      <div className="p-3 bg-blue-50/30 rounded-xl border border-blue-50">
+                        <p className="text-[9px] text-blue-500 mb-1">Gross Salary</p>
                         <p className="text-sm font-bold text-blue-900">{formatCurrency(grossSalary)}</p>
                       </div>
-                      <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-50">
-                        <p className="text-[9px] text-blue-500 mb-1">Thu nhập tính theo công</p>
+                      <div className="p-3 bg-blue-50/30 rounded-xl border border-blue-50">
+                        <p className="text-[9px] text-blue-500 mb-1">Lương tính theo công</p>
                         <p className="text-sm font-bold text-blue-900">{formatCurrency(calc.salaryByDays)}</p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Nhóm Khấu trừ */}
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-orange-600 uppercase">
-                      <MinusCircle className="w-3 h-3" /> Các khoản khấu trừ
-                    </div>
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-orange-600 uppercase"><MinusCircle className="w-3 h-3" /> Khấu trừ</div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div className={`p-2 bg-orange-50/50 rounded-xl border border-orange-50 ${isFreelancer ? "opacity-30 grayscale" : ""}`}>
-                        <p className="text-[9px] text-orange-500 mb-0.5">Bảo hiểm {!isFreelancer && `(${insuranceRate}%)`}</p>
+                      <div className={`p-2 bg-orange-50/30 rounded-xl border border-orange-50 ${isFreelancer ? "opacity-30 grayscale" : ""}`}>
+                        <p className="text-[9px] text-orange-500 mb-0.5">Bảo hiểm</p>
                         <p className="text-xs font-bold text-orange-900">-{formatCurrency(isFreelancer ? 0 : calc.insuranceAmt)}</p>
                       </div>
-                      <div className={`p-2 bg-orange-50/50 rounded-xl border border-orange-50 ${isFreelancer ? "opacity-30 grayscale" : ""}`}>
-                        <p className="text-[9px] text-orange-500 mb-0.5">Giảm trừ gia cảnh</p>
+                      <div className={`p-2 bg-orange-50/30 rounded-xl border border-orange-50 ${isFreelancer ? "opacity-30 grayscale" : ""}`}>
+                        <p className="text-[9px] text-orange-500 mb-0.5">Giảm trừ</p>
                         <p className="text-xs font-bold text-orange-900">-{formatCurrency(isFreelancer ? 0 : calc.totalDeduction)}</p>
                       </div>
-                      <div className="p-2 bg-red-50/50 rounded-xl border border-red-50 relative overflow-hidden">
-                        {isFreelancer && <div className="absolute top-0 right-0 p-1"><Zap className="w-2 h-2 text-red-400" /></div>}
-                        <p className="text-[9px] text-red-500 mb-0.5">Thuế TNCN {isFreelancer && '(10%)'}</p>
+                      <div className="p-2 bg-red-50/30 rounded-xl border border-red-50">
+                        <p className="text-[9px] text-red-500 mb-0.5">Thuế TNCN</p>
                         <p className="text-xs font-bold text-red-900">-{formatCurrency(calc.pit)}</p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Bảo mật Thực lĩnh - Tinh gọn & Điểm nhấn */}
                   <div className="mt-2 pt-4 border-t border-slate-50 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="flex flex-col">
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Kết toán cuối kỳ</span>
-                            <div className="flex items-center gap-2">
-                                <div className="w-1 h-4 bg-indigo-600 rounded-full"></div>
-                                <span className="text-base font-bold text-slate-900 tracking-tight">
-                                    {formatCurrency(calc.takeHome).replace('₫', '').trim()} <span className="text-[10px] font-normal text-slate-400 italic">VND</span>
-                                </span>
-                            </div>
+                    <div className="flex flex-col">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Thực lĩnh kỳ này</span>
+                        <div className="flex items-center gap-2">
+                            <div className="w-1 h-5 bg-indigo-600 rounded-full"></div>
+                            <span className="text-lg font-black text-slate-900 tracking-tight">
+                                {formatCurrency(calc.takeHome).replace('₫', '').trim()} <span className="text-[10px] font-normal text-slate-400">VND</span>
+                            </span>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-full">
+                    <div className="px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-full flex items-center gap-2">
                          <Wallet className="w-3 h-3 text-indigo-600" />
-                         <span className="text-[9px] font-black text-indigo-700 uppercase tracking-widest">Confirmed</span>
+                         <span className="text-[9px] font-black text-indigo-700 uppercase">Confirmed</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Cột Phải: Lịch */}
-            <div className="xl:col-span-4 flex flex-col gap-4">
+            <div className="xl:col-span-5 space-y-4">
               <div className="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-3 px-1">
                   <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <Calendar className="w-3 h-3" /> Lịch công
+                    <Calendar className="w-3 h-3" /> Lịch làm việc trong kỳ
                   </h3>
-                  {scheduleData.makeupCount > 0 && <span className="text-[10px] bg-amber-100 text-amber-700 px-2.5 py-1.5 rounded-md font-bold">+{scheduleData.makeupCount} NGÀY</span>}
+                  {scheduleData.makeupCount > 0 && <span className="text-[8px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold">+{scheduleData.makeupCount} NGÀY BÙ</span>}
                 </div>
                 
                 <div className="grid grid-cols-7 gap-1">
-                  {dayNames.map(d => <div key={d} className="text-[10px] font-black text-slate-300 text-center uppercase">{d}</div>)}
-                  {Array.from({ length: scheduleData.details[0].dayOfWeek }).map((_, i) => <div key={i}></div>)}
-                  {scheduleData.details.map(item => (
-                    <div key={item.day} className={`
-                      py-2 flex items-center justify-center rounded-md text-[9px] font-bold transition-all relative
-                      ${item.type === 'workday' ? 'bg-slate-50 text-slate-500 border border-slate-100' : 
-                        item.type === 'saturday' ? 'bg-indigo-50 text-indigo-500 border border-indigo-100' :
-                        item.type === 'holiday' ? 'bg-red-50 text-red-600 border border-red-100' :
-                        item.type === 'makeup' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                        'text-slate-200 border border-transparent'}
+                  {dayNames.map(d => <div key={d} className="text-[8px] font-black text-slate-300 text-center uppercase py-1">{d}</div>)}
+                  {scheduleData.details.map((item, idx) => (
+                    <div key={idx} title={item.fullDate} className={`
+                      py-2 flex items-center justify-center rounded-lg text-[10px] font-bold transition-all relative border
+                      ${item.type === 'workday' ? 'bg-slate-50 text-slate-500 border-slate-100' : 
+                        item.type === 'saturday' ? 'bg-indigo-50 text-indigo-500 border-indigo-100' :
+                        item.type === 'holiday' ? 'bg-red-50 text-red-600 border-red-100' :
+                        item.type === 'makeup' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                        'bg-white text-slate-200 border-transparent'}
                     `}>
-                      {item.day}
+                      {item.dateLabel}
                       {item.isMakeupDay && <div className="absolute top-0.5 right-0.5 w-1 h-1 bg-amber-500 rounded-full"></div>}
                     </div>
                   ))}
                 </div>
 
-                <div className="mt-3 flex items-center justify-center gap-4 border-t border-slate-50 pt-2 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-3 border-t border-slate-50 pt-3 text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
+                   <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Ngày làm</div>
                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-red-400"></div> Lễ</div>
-                   <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div> Nghỉ bù</div>
+                   <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div> Bù</div>
                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div> T7</div>
                 </div>
               </div>
-
-              <button className="w-full bg-slate-900 text-white py-3 rounded-2xl text-[11px] font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all active:scale-[0.98] shadow-sm">
-                Xuất phiếu lương <ArrowRight className="w-3.5 h-3.5" />
+              
+              <button className="w-full bg-slate-900 text-white py-3.5 rounded-2xl text-[11px] font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">
+                Xuất dữ liệu kỳ công <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -397,9 +439,7 @@ const App = () => {
         .custom-scrollbar::-webkit-scrollbar { width: 3px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        @media (max-width: 640px) {
-          .aspect-square { min-height: 24px; }
-        }
+        input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; }
       `}</style>
     </div>
   );
