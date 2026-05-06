@@ -258,13 +258,10 @@ const App = () => {
             <span className="text-base font-bold">Salary<span className="text-indigo-600">Lite</span></span>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="items-center gap-1.5">
           {isFreelancer && (
             <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200">FREELANCER</span>
           )}
-          <div className="bg-slate-100 px-2 py-0.5 rounded-full text-[10px] font-bold text-slate-500 flex items-center gap-1">
-            <CalendarRange className="w-2.5 h-2.5" /> Kỳ linh hoạt
-          </div>
         </div>
       </header>
 
