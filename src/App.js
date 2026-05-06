@@ -10,10 +10,13 @@ import {
   ArrowRight,
   ArrowUpRight,
   MinusCircle,
+  PlusCircle,
   UserCheck,
   Zap,
   AlertTriangle,
-  CalendarRange
+  CalendarRange,
+  Minus,
+  Plus
 } from 'lucide-react';
 
 const App = () => {
@@ -24,6 +27,7 @@ const App = () => {
     const currentMonth = today.getMonth(); 
     const currentYear = today.getFullYear();
     
+    // Mặc định lấy kỳ lương tháng hiện tại (từ 29 tháng trước đến 28 tháng này)
     const from = new Date(currentYear, currentMonth - 2, 29);
     const to = new Date(currentYear, currentMonth - 1, 28);
     
@@ -87,13 +91,11 @@ const App = () => {
       curr.setDate(curr.getDate() + 1);
     }
 
-    // Tìm các ngày nghỉ bù
     const makeupDays = new Set();
     dateArray.forEach(date => {
         const dateStr = date.toISOString().split('T')[0];
         const dayOfWeek = date.getDay();
         if (holidayDates.has(dateStr)) {
-            // Nếu Lễ rơi vào CN hoặc T7 (nếu cty nghỉ T7) thì cần tìm ngày bù
             const isFullOffDay = (dayOfWeek === 0) || (dayOfWeek === 6 && !includeSaturday);
             if (isFullOffDay) {
                 let next = new Date(date);
@@ -122,18 +124,15 @@ const App = () => {
 
       if (isMakeupDay) {
         type = 'makeup';
-        dayValue = 1; // Nghỉ bù tính 1 công
+        dayValue = 1;
       } else if (isHoliday) {
         type = 'holiday';
-        // Nếu Lễ rơi vào ngày đi làm bình thường (T2-T6) -> Tính 1 công
-        // Nếu Lễ rơi vào T7 (và cty có làm T7) -> Tính 0.5 công (hoặc 1 tùy chính sách, ở đây giữ logic cũ 0.5 để khớp 24 công)
-        // Nếu Lễ rơi vào CN hoặc T7 nghỉ -> Không tính công tại ngày đó (vì đã tính vào ngày MUA KEP bù rồi)
         if (dayOfWeek >= 1 && dayOfWeek <= 5) {
             dayValue = 1;
         } else if (dayOfWeek === 6 && includeSaturday) {
             dayValue = 0.5;
         } else {
-            dayValue = 0; // Không tính công chồng chéo nếu đã có ngày bù
+            dayValue = 0;
         }
       } else if (dayOfWeek >= 1 && dayOfWeek <= 5) {
         dayValue = 1;
@@ -199,6 +198,33 @@ const App = () => {
 
   const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
+  // Thành phần Input có nút +/-
+  const StepperInput = ({ value, onChange, step = 1, min = 0, max = 100, label, disabled = false }) => (
+    <div className={`space-y-1 ${disabled ? "opacity-30 pointer-events-none" : ""}`}>
+      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-tight block">{label}</label>
+      <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+        <button 
+          onClick={() => onChange(Math.max(min, value - step))}
+          className="p-1 hover:bg-white hover:shadow-sm rounded-md transition-all text-slate-500"
+        >
+          <Minus className="w-3 h-3" />
+        </button>
+        <input 
+          type="number" 
+          value={value} 
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="w-full bg-transparent text-center text-xs font-bold focus:outline-none"
+        />
+        <button 
+          onClick={() => onChange(Math.min(max, value + step))}
+          className="p-1 hover:bg-white hover:shadow-sm rounded-md transition-all text-slate-500"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col antialiased">
       {isSidebarOpen && (
@@ -217,9 +243,9 @@ const App = () => {
         </div>
         <div className="flex items-center gap-1.5">
           {isFreelancer && (
-            <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[9px] font-bold border border-amber-200">FREELANCER</span>
+            <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200">FREELANCER</span>
           )}
-          <div className="bg-slate-100 px-2 py-0.5 rounded-full text-[9px] font-bold text-slate-500 flex items-center gap-1">
+          <div className="bg-slate-100 px-2 py-0.5 rounded-full text-[10px] font-bold text-slate-500 flex items-center gap-1">
             <CalendarRange className="w-2.5 h-2.5" /> Kỳ linh hoạt
           </div>
         </div>
@@ -234,19 +260,19 @@ const App = () => {
           <div className="p-3 flex-1 overflow-y-auto space-y-4 custom-scrollbar">
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <h3 className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1.5">
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1.5">
                   <CalendarRange className="w-2.5 h-2.5" /> Kỳ tính công
                 </h3>
                 <button 
                   onClick={() => setDateRange(getDefaultDates())}
-                  className="text-[8px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded hover:bg-indigo-100 transition-colors"
+                  className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded hover:bg-indigo-100 transition-colors"
                 >
                   Mặc định
                 </button>
               </div>
               <div className="grid grid-cols-1 gap-1 p-1.5 bg-slate-50 rounded-lg border border-slate-100">
                 <div className="flex items-center justify-between gap-2">
-                  <label className="text-[8px] text-slate-400 font-bold uppercase shrink-0">Từ</label>
+                  <label className="text-[10px] text-slate-400 font-bold uppercase shrink-0">Từ</label>
                   <input 
                     type="date" 
                     value={dateRange.fromDate} 
@@ -255,7 +281,7 @@ const App = () => {
                   />
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <label className="text-[8px] text-slate-400 font-bold uppercase shrink-0">Đến</label>
+                  <label className="text-[10px] text-slate-400 font-bold uppercase shrink-0">Đến</label>
                   <input 
                     type="date" 
                     value={dateRange.toDate} 
@@ -266,40 +292,46 @@ const App = () => {
                 {dateError && (
                     <div className="flex items-start gap-1.5 p-1.5 bg-red-50 rounded border border-red-100">
                         <AlertTriangle className="w-2.5 h-2.5 text-red-500 mt-0.5" />
-                        <span className="text-[9px] text-red-600 leading-tight font-medium">{dateError}</span>
+                        <span className="text-[10px] text-red-600 leading-tight font-medium">{dateError}</span>
                     </div>
                 )}
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <h3 className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1.5">
+              <h3 className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1.5">
                 <UserCheck className="w-2.5 h-2.5" /> Loại nhân sự
               </h3>
               <div className="bg-slate-100 p-0.5 rounded flex">
-                <button onClick={() => setIsFreelancer(false)} className={`flex-1 py-1 rounded text-[9px] font-bold transition-all ${!isFreelancer ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>Chính thức</button>
-                <button onClick={() => setIsFreelancer(true)} className={`flex-1 py-1 rounded text-[9px] font-bold transition-all ${isFreelancer ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500'}`}>Freelancer</button>
+                <button onClick={() => setIsFreelancer(false)} className={`flex-1 py-1 rounded text-[10px] font-bold transition-all ${!isFreelancer ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>Chính thức</button>
+                <button onClick={() => setIsFreelancer(true)} className={`flex-1 py-1 rounded text-[10px] font-bold transition-all ${isFreelancer ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500'}`}>Freelancer</button>
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <h3 className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1.5">
+              <h3 className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1.5">
                 <Settings className="w-2.5 h-2.5" /> Cấu hình lương
               </h3>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <div>
-                  <label className="text-[9px] text-slate-500 mb-0.5 block">Lương Gross</label>
-                  <input type="number" value={grossSalary} onChange={(e) => setGrossSalary(Number(e.target.value))} className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs font-bold" />
+                  <label className="text-[10px] font-bold text-slate-500 uppercase mb-0.5 block">Lương Gross</label>
+                  <input type="number" value={grossSalary} onChange={(e) => setGrossSalary(Number(e.target.value))} className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs font-bold focus:ring-1 focus:ring-indigo-500 outline-none" />
                 </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <div className={isFreelancer ? "opacity-30 pointer-events-none" : ""}>
-                    <label className="text-[9px] text-slate-500 mb-0.5 block">% BH</label>
-                    <input type="number" step="0.5" disabled={isFreelancer} value={insuranceRate} onChange={(e) => setInsuranceRate(Number(e.target.value))} className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs font-bold" />
-                  </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <StepperInput 
+                    label="% Bảo hiểm"
+                    value={insuranceRate}
+                    onChange={setInsuranceRate}
+                    step={0.5}
+                    disabled={isFreelancer}
+                  />
                   <div className="flex flex-col">
-                    <label className="text-[9px] text-slate-500 mb-0.5 block">Sáng T7</label>
-                    <button onClick={() => setIncludeSaturday(!includeSaturday)} className={`h-[28px] flex items-center justify-center rounded border text-[10px] transition-all ${includeSaturday ? 'bg-indigo-50 border-indigo-200 text-indigo-600 font-bold' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                        {includeSaturday ? 'Có' : 'Không'}
+                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Làm Thứ 7</label>
+                    <button 
+                      onClick={() => setIncludeSaturday(!includeSaturday)} 
+                      className={`h-[30px] flex items-center justify-center rounded-lg border text-[10px] transition-all ${includeSaturday ? 'bg-indigo-50 border-indigo-200 text-indigo-600 font-bold' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
+                    >
+                        {includeSaturday ? 'Sáng Thứ 7' : 'Nghỉ'}
                     </button>
                   </div>
                 </div>
@@ -307,18 +339,24 @@ const App = () => {
             </div>
 
             <div className="space-y-1.5">
-              <h3 className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1.5">
+              <h3 className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1.5">
                 <Clock className="w-2.5 h-2.5" /> Chấm công
               </h3>
-              <div className="grid grid-cols-2 gap-1.5">
-                <div>
-                  <label className="text-[9px] text-slate-500 mb-0.5 block">Nghỉ ko lương</label>
-                  <input type="number" step="0.5" value={unpaidLeave} onChange={(e) => setUnpaidLeave(Number(e.target.value))} className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs font-bold" />
-                </div>
-                <div className={isFreelancer ? "opacity-30 pointer-events-none" : ""}>
-                  <label className="text-[9px] text-slate-500 mb-0.5 block">Phụ thuộc</label>
-                  <input type="number" disabled={isFreelancer} value={dependents} onChange={(e) => setDependents(Number(e.target.value))} className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs font-bold" />
-                </div>
+              <div className="grid grid-cols-2 gap-2">
+                <StepperInput 
+                  label="Nghỉ ko lương"
+                  value={unpaidLeave}
+                  onChange={setUnpaidLeave}
+                  step={0.5}
+                  max={31}
+                />
+                <StepperInput 
+                  label="Phụ thuộc"
+                  value={dependents}
+                  onChange={setDependents}
+                  disabled={isFreelancer}
+                  max={20}
+                />
               </div>
             </div>
           </div>
@@ -332,9 +370,9 @@ const App = () => {
               { label: 'Lương/Ngày', val: formatCurrency(calc.dailyRate), color: 'bg-slate-100 text-slate-700 border-slate-200' },
               { label: 'Tổng số ngày', val: scheduleData.details.length, color: 'bg-white text-slate-600 border-slate-200 shadow-sm' }
             ].map((m, i) => (
-              <div key={i} className={`${m.color} px-2.5 py-1.5 rounded-xl border flex flex-col justify-center`}>
-                <span className="text-[7px] font-bold uppercase opacity-80">{m.label}</span>
-                <span className="text-[10px] md:text-xs font-black truncate">{m.val}</span>
+              <div key={i} className={`${m.color} px-2.5 py-2 rounded-xl border flex flex-col justify-center`}>
+                <span className="text-[8px] font-bold uppercase opacity-80 mb-0.5">{m.label}</span>
+                <span className="text-[11px] md:text-xs font-black truncate">{m.val}</span>
               </div>
             ))}
           </div>
@@ -342,57 +380,57 @@ const App = () => {
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 items-start">
             <div className="xl:col-span-7 space-y-3">
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                <div className="px-3 py-1 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                  <h3 className="text-[9px] font-bold uppercase text-slate-500">Bảng tính lương chi tiết</h3>
+                <div className="px-3 py-1.5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                  <h3 className="text-[10px] font-bold uppercase text-slate-500">Bảng tính lương chi tiết</h3>
                   <ShieldCheck className="w-3 h-3 text-indigo-500" />
                 </div>
                 
                 <div className="p-3 space-y-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-blue-600 uppercase"><ArrowUpRight className="w-2.5 h-2.5" /> Thu nhập</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 uppercase"><ArrowUpRight className="w-2.5 h-2.5" /> Thu nhập</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="p-2 bg-blue-50/30 rounded-lg border border-blue-50 flex justify-between items-center">
-                        <p className="text-[8px] text-blue-500">Gross Salary</p>
-                        <p className="text-[11px] font-bold text-blue-900">{formatCurrency(grossSalary)}</p>
+                        <p className="text-[9px] font-bold text-blue-500 uppercase tracking-tighter">Gross Salary</p>
+                        <p className="text-xs font-bold text-blue-900">{formatCurrency(grossSalary)}</p>
                       </div>
                       <div className="p-2 bg-blue-50/30 rounded-lg border border-blue-50 flex justify-between items-center">
-                        <p className="text-[8px] text-blue-500">Lương theo công</p>
-                        <p className="text-[11px] font-bold text-blue-900">{formatCurrency(calc.salaryByDays)}</p>
+                        <p className="text-[9px] font-bold text-blue-500 uppercase tracking-tighter">Lương theo công</p>
+                        <p className="text-xs font-bold text-blue-900">{formatCurrency(calc.salaryByDays)}</p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-orange-600 uppercase"><MinusCircle className="w-2.5 h-2.5" /> Khấu trừ</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-orange-600 uppercase"><MinusCircle className="w-2.5 h-2.5" /> Khấu trừ</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div className={`p-2 bg-orange-50/30 rounded-lg border border-orange-50 ${isFreelancer ? "opacity-30 grayscale" : ""}`}>
-                        <p className="text-[8px] text-orange-500">Bảo hiểm</p>
-                        <p className="text-[10px] font-bold text-orange-900">-{formatCurrency(isFreelancer ? 0 : calc.insuranceAmt)}</p>
+                        <p className="text-[9px] font-bold text-orange-500 uppercase tracking-tighter">Bảo hiểm</p>
+                        <p className="text-[11px] font-bold text-orange-900">-{formatCurrency(isFreelancer ? 0 : calc.insuranceAmt)}</p>
                       </div>
                       <div className={`p-2 bg-orange-50/30 rounded-lg border border-orange-50 ${isFreelancer ? "opacity-30 grayscale" : ""}`}>
-                        <p className="text-[8px] text-orange-500">Giảm trừ</p>
-                        <p className="text-[10px] font-bold text-orange-900">-{formatCurrency(isFreelancer ? 0 : calc.totalDeduction)}</p>
+                        <p className="text-[9px] font-bold text-orange-500 uppercase tracking-tighter">Giảm trừ</p>
+                        <p className="text-[11px] font-bold text-orange-900">-{formatCurrency(isFreelancer ? 0 : calc.totalDeduction)}</p>
                       </div>
                       <div className="p-2 bg-red-50/30 rounded-lg border border-red-50">
-                        <p className="text-[8px] text-red-500">Thuế TNCN</p>
-                        <p className="text-[10px] font-bold text-red-900">-{formatCurrency(calc.pit)}</p>
+                        <p className="text-[9px] font-bold text-red-500 uppercase tracking-tighter">Thuế TNCN</p>
+                        <p className="text-[11px] font-bold text-red-900">-{formatCurrency(calc.pit)}</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="pt-2 border-t border-slate-50 flex items-center justify-between">
                     <div>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter block mb-0.5">Thực lĩnh kỳ này</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter block mb-0.5">Thực lĩnh kỳ này</span>
                         <div className="flex items-center gap-1.5">
                             <div className="w-1 h-4 bg-indigo-600 rounded-full"></div>
                             <span className="text-base font-black text-slate-900 tracking-tight">
-                                {formatCurrency(calc.takeHome).replace('₫', '').trim()} <span className="text-[9px] font-normal text-slate-400">VND</span>
+                                {formatCurrency(calc.takeHome).replace('₫', '').trim()} <span className="text-[10px] font-normal text-slate-400 uppercase">VND</span>
                             </span>
                         </div>
                     </div>
-                    <div className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center gap-1.5">
-                         <Wallet className="w-2.5 h-2.5 text-indigo-600" />
-                         <span className="text-[8px] font-black text-indigo-700 uppercase">Paid</span>
+                    <div className="px-2.5 py-1 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center gap-1.5">
+                         <Wallet className="w-3 h-3 text-indigo-600" />
+                         <span className="text-[9px] font-black text-indigo-700 uppercase">Đã tính</span>
                     </div>
                   </div>
                 </div>
@@ -400,19 +438,19 @@ const App = () => {
             </div>
 
             <div className="xl:col-span-5 space-y-3">
-              <div className="bg-white rounded-xl border border-slate-200 p-2 shadow-sm">
-                <div className="flex items-center justify-between mb-2 px-1">
-                  <h3 className="text-[9px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+              <div className="bg-white rounded-xl border border-slate-200 p-2.5 shadow-sm">
+                <div className="flex items-center justify-between mb-2.5 px-1">
+                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
                     <Calendar className="w-2.5 h-2.5" /> Lịch làm việc
                   </h3>
-                  {scheduleData.makeupCount > 0 && <span className="text-[7px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-bold">+{scheduleData.makeupCount} BÙ</span>}
+                  {scheduleData.makeupCount > 0 && <span className="text-[8px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">+{scheduleData.makeupCount} NGHỈ BÙ</span>}
                 </div>
                 
                 <div className="grid grid-cols-7 gap-1">
-                  {dayNames.map(d => <div key={d} className="text-[7px] font-black text-slate-300 text-center uppercase py-0.5">{d}</div>)}
+                  {dayNames.map(d => <div key={d} className="text-[8px] font-black text-slate-300 text-center uppercase py-0.5">{d}</div>)}
                   {scheduleData.details.map((item, idx) => (
                     <div key={idx} title={item.fullDate} className={`
-                      py-1.5 flex items-center justify-center rounded text-[9px] font-bold transition-all relative border
+                      py-2 flex items-center justify-center rounded text-[10px] font-bold transition-all relative border
                       ${item.type === 'workday' ? 'bg-slate-50 text-slate-500 border-slate-100' : 
                         item.type === 'saturday' ? 'bg-indigo-50 text-indigo-500 border-indigo-100' :
                         item.type === 'holiday' ? 'bg-red-50 text-red-600 border-red-100' :
@@ -425,15 +463,15 @@ const App = () => {
                   ))}
                 </div>
 
-                <div className="mt-2 flex flex-wrap items-center justify-center gap-2 border-t border-slate-50 pt-2 text-[7px] font-bold text-slate-400 uppercase">
-                   <div className="flex items-center gap-0.5"><div className="w-1 h-1 rounded-full bg-slate-400"></div> Làm</div>
-                   <div className="flex items-center gap-0.5"><div className="w-1 h-1 rounded-full bg-red-400"></div> Lễ</div>
-                   <div className="flex items-center gap-0.5"><div className="w-1 h-1 rounded-full bg-amber-400"></div> Bù</div>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-3 border-t border-slate-50 pt-2 text-[8px] font-bold text-slate-400 uppercase">
+                   <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Làm</div>
+                   <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-red-400"></div> Lễ</div>
+                   <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div> Bù</div>
                 </div>
               </div>
               
-              <button className="w-full bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-slate-800 transition-all shadow-md shadow-slate-100">
-                Xuất dữ liệu <ArrowRight className="w-3 h-3" />
+              <button className="w-full bg-slate-900 text-white py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-md shadow-slate-100">
+                Xuất dữ liệu Excel <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
